@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BasedMarket | Admin Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Space Grotesk', 'sans-serif'] },
+                    colors: {
+                        bg: '#020202',
+                        card: '#0C0C0C',
+                        surface: '#121212',
+                        primary: '#00FF94',
+                        bear: '#FF2E2E',
+                        bull: '#00D95F',
+                        gold: '#FFD700',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #020202; color: white; }
+        .glass { background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .input-dark { background: #080808; border: 1px solid #222; color: white; padding: 10px; border-radius: 8px; width: 100%; }
+        .input-dark:focus { border-color: #00FF94; outline: none; }
+        
+        /* Status Badges */
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        .badge-won { background: rgba(0, 217, 95, 0.15); color: #00D95F; border: 1px solid rgba(0, 217, 95, 0.3); }
+        .badge-lost { background: rgba(255, 46, 46, 0.15); color: #FF2E2E; border: 1px solid rgba(255, 46, 46, 0.3); }
+        .badge-pending { background: rgba(255, 215, 0, 0.15); color: #FFD700; border: 1px solid rgba(255, 215, 0, 0.3); }
+        
+        /* Currency Badges */
+        .curr-usdc { color: #2775CA; font-weight: bold; }
+        .curr-eth { color: #627EEA; font-weight: bold; }
+        .curr-bonus { color: #FFD700; font-weight: bold; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-6">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-overlay" class="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center">
+        <div class="w-16 h-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 animate-pulse">
+            <i class="fa-solid fa-shield-cat text-primary text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-display font-bold mb-2">Admin Access Only</h1>
+        <p class="text-gray-500 mb-6 text-sm">Connect the designated settlement wallet.</p>
+        <button onclick="connectAdmin()" class="bg-primary text-black font-bold px-8 py-3 rounded-full hover:scale-105 transition-transform">
+            Connect Wallet
+        </button>
+        <p id="login-error" class="text-red-500 text-xs mt-4 hidden">Unauthorized Wallet Address</p>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="dashboard" class="hidden w-full max-w-7xl mx-auto">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-black font-bold text-xl">A</div>
+                <div>
+                    <h1 class="font-bold text-xl">BasedMarket <span class="text-gray-500 font-normal">Protocol Admin</span></h1>
+                    <div class="text-xs text-gray-400 font-mono" id="admin-address">0x...</div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="fetchAdminData()" class="px-4 py-2 bg-[#111] border border-[#333] rounded-lg text-xs hover:text-primary transition">
+                    <i class="fa-solid fa-rotate mr-2"></i> Refresh Data
+                </button>
+            </div>
+        </header>
+
+        <!-- GRID LAYOUT -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- LEFT COL: SETTLEMENT CONSOLE -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Settlement Card -->
+                <div class="glass p-6 rounded-2xl">
+                    <h2 class="text-lg font-display font-bold mb-1 text-white flex items-center gap-2">
+                        <i class="fa-solid fa-gavel text-primary"></i> Settle Market
+                    </h2>
+                    <p class="text-xs text-gray-500 mb-6">Select the winning outcome to process payouts.</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase font-bold block mb-2">Select Asset</label>
+                            <select id="settleAsset" class="input-dark">
+                                <option value="BTC">BTC / USD</option>
+                                <option value="ETH">ETH / USD</option>
+                                <option value="SOL">SOL / USD</option>
+                                <option value="DOGE">DOGE / USD</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase font-bold block mb-2">Winning Side</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button onclick="selectWinner('BEAR')" id="btn-BEAR" class="winner-btn py-3 rounded-lg border border-bear/30 bg-bear/10 text-bear font-bold text-xs hover:bg-bear hover:text-black transition">BEAR</button>
+                                <button onclick="selectWinner('NEUTRAL')" id="btn-NEUTRAL" class="winner-btn py-3 rounded-lg border border-gray-600 bg-gray-800 text-gray-300 font-bold text-xs hover:bg-white hover:text-black transition">NEUTRAL</button>
+                                <button onclick="selectWinner('BULL')" id="btn-BULL" class="winner-btn py-3 rounded-lg border border-bull/30 bg-bull/10 text-bull font-bold text-xs hover:bg-bull hover:text-black transition">BULL</button>
+                            </div>
+                            <input type="hidden" id="selectedWinner">
+                        </div>
+
+                        <div class="bg-[#111] p-3 rounded-lg border border-gray-800 mt-4">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-500">Action</span>
+                                <span class="text-white font-mono">SETTLE_ROUND</span>
+                            </div>
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-500">Status</span>
+                                <span class="text-yellow-500 font-mono">Pending Confirmation</span>
+                            </div>
+                        </div>
+
+                        <button onclick="executeSettlement()" id="executeBtn" class="w-full bg-gradient-to-r from-primary to-emerald-600 text-black font-bold py-4 rounded-xl uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,255,148,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            Confirm & Pay Winners
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="glass p-6 rounded-2xl">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase mb-4">Ledger Overview</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">Pending Payouts (Real)</span>
+                            <span class="text-white font-mono font-bold" id="statPendingReal">$0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">Pending Payouts (Bonus)</span>
+                            <span class="text-gold font-mono font-bold" id="statPendingBonus">$0.00</span>
+                        </div>
+                        <div class="h-px bg-gray-800 w-full"></div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">Total Vol (24h)</span>
+                            <span class="text-primary font-mono font-bold" id="statTotalVol">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COL: PAYOUT LEDGER -->
+            <div class="lg:col-span-2">
+                <div class="glass rounded-2xl overflow-hidden h-full flex flex-col">
+                    <!-- Toolbar -->
+                    <div class="p-4 border-b border-gray-800 flex flex-wrap gap-2 items-center justify-between bg-[#050505]">
+                        <div class="flex gap-2">
+                            <button onclick="filterTable('ALL')" class="filter-btn px-3 py-1.5 rounded text-[10px] font-bold bg-white text-black">ALL</button>
+                            <button onclick="filterTable('WON')" class="filter-btn px-3 py-1.5 rounded text-[10px] font-bold bg-[#111] text-gray-400 hover:text-white">WINS ONLY</button>
+                            <button onclick="filterTable('PENDING')" class="filter-btn px-3 py-1.5 rounded text-[10px] font-bold bg-[#111] text-gray-400 hover:text-white">PENDING</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="filterType('REAL')" class="type-btn px-3 py-1.5 rounded text-[10px] font-bold bg-blue-900/30 text-blue-400 border border-blue-900">REAL ($)</button>
+                            <button onclick="filterType('BONUS')" class="type-btn px-3 py-1.5 rounded text-[10px] font-bold bg-yellow-900/30 text-gold border border-yellow-900">BONUS</button>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="overflow-auto flex-1">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-[#0A0A0A] sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-3 text-[10px] text-gray-500 font-bold uppercase tracking-wider">Time</th>
+                                    <th class="p-3 text-[10px] text-gray-500 font-bold uppercase tracking-wider">User Address</th>
+                                    <th class="p-3 text-[10px] text-gray-500 font-bold uppercase tracking-wider text-center">Bet Info</th>
+                                    <th class="p-3 text-[10px] text-gray-500 font-bold uppercase tracking-wider text-center">Amount</th>
+                                    <th class="p-3 text-[10px] text-gray-500 font-bold uppercase tracking-wider text-center">Status</th>
+                                    <th class="p-3 text-[10px] text-gray-500 font-bold uppercase tracking-wider text-right">Payout Owed</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledgerBody" class="divide-y divide-gray-900 text-xs">
+                                <tr><td colspan="6" class="text-center py-10 text-gray-600">Connect wallet to load ledger...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIG
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby3NQQBOQd8wMHzrQRx33xXGjKk95V1RrtmnfFgCf3D0re0fV7fehHFsRcWjvvchSmoaQ/exec";
+        const ADMIN_WALLET = "0x91A6d3FFFe7491DeB69130523B48ed2f5336FE6b"; // Must match script
+
+        let allBets = [];
+        let currentFilter = 'ALL'; // ALL, WON, LOST, PENDING
+        let currentType = 'ALL'; // ALL, REAL, BONUS
+
+        // ---------------- INIT ----------------
+        async function connectAdmin() {
+            if (!window.ethereum) return alert("No Wallet Found");
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            const signer = provider.getSigner();
+            const address = await signer.getAddress();
+
+            if (address.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+                document.getElementById('login-error').classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('login-overlay').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('admin-address').innerText = address;
+            
+            fetchAdminData();
+        }
+
+        // ---------------- DATA FETCHING ----------------
+        async function fetchAdminData() {
+            const tbody = document.getElementById('ledgerBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-primary animate-pulse">Fetching Transaction History...</td></tr>';
+
+            try {
+                const res = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "get_admin_data", user: ADMIN_WALLET })
+                });
+                const data = await res.json();
+                
+                if(data.allBets) {
+                    allBets = data.allBets;
+                    renderTable();
+                    calcStats();
+                }
+            } catch(e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-red-500">Connection Error</td></tr>';
+            }
+        }
+
+        // ---------------- RENDERING ----------------
+        function renderTable() {
+            const tbody = document.getElementById('ledgerBody');
+            tbody.innerHTML = '';
+
+            // Sort: PENDING first, then WON, then LOST. Date desc.
+            const sorted = allBets.sort((a, b) => {
+                if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
+                if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
+                return new Date(b.date) - new Date(a.date);
+            });
+
+            // Filter
+            const filtered = sorted.filter(bet => {
+                const statusMatch = currentFilter === 'ALL' ? true : bet.status === currentFilter;
+                
+                let typeMatch = true;
+                if(currentType === 'REAL') typeMatch = bet.currency !== 'BONUS';
+                if(currentType === 'BONUS') typeMatch = bet.currency === 'BONUS';
+                
+                return statusMatch && typeMatch;
+            });
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-600">No records found matching filters.</td></tr>';
+                return;
+            }
+
+            filtered.forEach(bet => {
+                const isBonus = bet.currency === 'BONUS';
+                const isEth = bet.currency === 'ETH';
+                const isUsdc = bet.currency === 'USDC';
+                
+                let currencyClass = isBonus ? 'curr-bonus' : (isEth ? 'curr-eth' : 'curr-usdc');
+                let payoutStyle = bet.status === 'WON' ? 'text-primary font-bold' : 'text-gray-600';
+                
+                let statusBadge = `<span class="badge badge-pending">PENDING</span>`;
+                if(bet.status === 'WON') statusBadge = `<span class="badge badge-won">WON</span>`;
+                if(bet.status === 'LOST') statusBadge = `<span class="badge badge-lost">LOST</span>`;
+
+                const payoutAmount = bet.payout > 0 ? bet.payout : (bet.status === 'WON' ? "Calc..." : "0.00");
+
+                const row = `
+                    <tr class="hover:bg-[#111] transition-colors group">
+                        <td class="p-3 text-gray-500 font-mono whitespace-nowrap">${formatTime(bet.date)}</td>
+                        <td class="p-3 font-mono text-gray-300 relative">
+                            ${shortAddr(bet.user)}
+                            <button onclick="copyAddr('${bet.user}')" class="ml-2 text-gray-600 hover:text-primary opacity-0 group-hover:opacity-100 transition"><i class="fa-regular fa-copy"></i></button>
+                        </td>
+                        <td class="p-3 text-center">
+                            <div class="font-bold text-xs text-white">${bet.asset}</div>
+                            <div class="text-[9px] ${bet.prediction==='BEAR'?'text-bear':(bet.prediction==='BULL'?'text-bull':'text-gray-300')}">${bet.prediction}</div>
+                        </td>
+                        <td class="p-3 text-center font-mono text-white">$${bet.amount} <span class="text-[9px] ${currencyClass}">${bet.currency}</span></td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                        <td class="p-3 text-right font-mono ${payoutStyle}">${isBonus?'':'$'}${payoutAmount}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function calcStats() {
+            let pendingReal = 0;
+            let pendingBonus = 0;
+            let totalVol = 0;
+
+            allBets.forEach(bet => {
+                const amt = parseFloat(bet.amount);
+                totalVol += amt;
+                
+                // For Stats, we estimate Payout for Pending items roughly (won't be exact until settled)
+                // Or purely sum up "WON" items that haven't been marked paid?
+                // Here we sum up Payouts Owed (Status = WON)
+                if(bet.status === 'WON') {
+                     const payout = parseFloat(bet.payout);
+                     if(bet.currency === 'BONUS') pendingBonus += payout;
+                     else pendingReal += payout;
+                }
+            });
+
+            document.getElementById('statPendingReal').innerText = `$${pendingReal.toFixed(2)}`;
+            document.getElementById('statPendingBonus').innerText = pendingBonus.toFixed(2);
+            document.getElementById('statTotalVol').innerText = `$${totalVol.toFixed(2)}`;
+        }
+
+        // ---------------- SETTLEMENT ----------------
+        function selectWinner(side) {
+            document.querySelectorAll('.winner-btn').forEach(b => b.classList.remove('ring-2', 'ring-white'));
+            document.getElementById(`btn-${side}`).classList.add('ring-2', 'ring-white');
+            document.getElementById('selectedWinner').value = side;
+        }
+
+        async function executeSettlement() {
+            const asset = document.getElementById('settleAsset').value;
+            const winner = document.getElementById('selectedWinner').value;
+            const btn = document.getElementById('executeBtn');
+
+            if(!winner) return alert("Select a Winner (Bear, Neutral, or Bull)");
+            if(!confirm(`Confirm Settlement?\n\nAsset: ${asset}\nWinner: ${winner}\n\nThis will update the database and calculate payouts.`)) return;
+
+            btn.innerText = "Processing...";
+            btn.disabled = true;
+
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "no-cors", // Important for simple triggers
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ 
+                        action: "settle_round", 
+                        user: ADMIN_WALLET, 
+                        asset: asset, 
+                        winningSide: winner 
+                    })
+                });
+
+                // Wait a moment for GAS to process
+                setTimeout(() => {
+                    alert(`Settlement Command Sent for ${asset}. Reloading data...`);
+                    fetchAdminData();
+                    btn.innerText = "Confirm & Pay Winners";
+                    btn.disabled = false;
+                }, 3000);
+
+            } catch(e) {
+                alert("Error connecting to script");
+                btn.disabled = false;
+            }
+        }
+
+        // ---------------- UTILS ----------------
+        function filterTable(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('bg-white', 'text-black');
+                b.classList.add('bg-[#111]', 'text-gray-400');
+            });
+            event.target.classList.remove('bg-[#111]', 'text-gray-400');
+            event.target.classList.add('bg-white', 'text-black');
+            renderTable();
+        }
+
+        function filterType(type) {
+            currentType = type;
+            // Visual toggle logic needed if strictly required, currently functional
+            renderTable();
+        }
+
+        function shortAddr(addr) {
+            return addr.slice(0, 6) + '...' + addr.slice(-4);
+        }
+
+        function formatTime(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+
+        function copyAddr(addr) {
+            navigator.clipboard.writeText(addr);
+            alert("Address Copied: " + addr);
+        }
+
+    </script>
+</body>
+</html>
