@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BasedMarket | Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Space Grotesk', 'sans-serif'] },
+                    colors: {
+                        bg: '#020202',
+                        surface: '#0A0A0A',
+                        surfaceHighlight: '#141414',
+                        primary: '#00FF94',
+                        primaryDim: 'rgba(0, 255, 148, 0.1)',
+                        bear: '#FF2E2E',
+                        bull: '#00D95F',
+                        gold: '#FFD700',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-in-out',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #020202; color: white; }
+        .glass { background: rgba(14, 14, 14, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #333; }
+
+        /* Tab Animations */
+        .tab-content { display: none; animation: fadeIn 0.4s ease-out forwards; }
+        .tab-active { display: block; }
+        
+        /* Navigation Buttons */
+        .nav-btn { position: relative; transition: all 0.3s; opacity: 0.6; }
+        .nav-btn:hover { opacity: 1; color: white; }
+        .nav-btn-active { opacity: 1; color: #00FF94; }
+        .nav-btn-active::after { content: ''; position: absolute; bottom: -17px; left: 0; width: 100%; height: 2px; background: #00FF94; box-shadow: 0 -2px 10px #00FF94; }
+
+        /* Inputs & Cards */
+        .input-dark { background: #080808; border: 1px solid #222; color: white; padding: 12px; border-radius: 10px; width: 100%; transition: 0.3s; }
+        .input-dark:focus { border-color: #00FF94; outline: none; box-shadow: 0 0 10px rgba(0, 255, 148, 0.1); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-hidden">
+
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay" class="fixed inset-0 bg-[#020202] z-[100] flex flex-col items-center justify-center">
+        <div class="relative w-20 h-20 mb-6">
+            <div class="absolute inset-0 bg-primary/20 rounded-full animate-ping"></div>
+            <div class="relative w-20 h-20 bg-surfaceHighlight rounded-full flex items-center justify-center border border-primary/30 shadow-[0_0_30px_rgba(0,255,148,0.2)]">
+                <i class="fa-solid fa-shield-cat text-primary text-4xl"></i>
+            </div>
+        </div>
+        <h1 class="text-3xl font-display font-bold mb-2 tracking-tight">Admin Console</h1>
+        <p class="text-gray-500 mb-8 text-sm font-mono">Secure Connection Required</p>
+        <button onclick="connectAdmin()" class="bg-white text-black font-bold px-10 py-3 rounded-xl hover:bg-primary hover:scale-105 transition-all shadow-lg">
+            Connect Wallet
+        </button>
+        <p id="login-error" class="text-bear text-xs mt-4 font-mono hidden bg-bear/10 px-4 py-2 rounded border border-bear/20"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Unauthorized Address</p>
+    </div>
+
+    <!-- DASHBOARD CONTENT -->
+    <div id="dashboard" class="hidden flex flex-col h-screen">
+        
+        <!-- TOP BAR -->
+        <header class="h-16 bg-[#080808] border-b border-[#1A1A1A] flex justify-between items-center px-6 shrink-0 z-20">
+            <div class="flex items-center gap-4">
+                <div class="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20 text-primary">
+                    <i class="fa-solid fa-fingerprint"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm text-white tracking-wide">BASED<span class="text-primary">MARKET</span></h1>
+                    <div class="text-[10px] text-gray-500 font-mono tracking-wider">ADMIN PROTOCOL V2</div>
+                </div>
+            </div>
+            
+            <!-- NAVIGATION TABS -->
+            <nav class="flex gap-8 h-full items-center px-10">
+                <button onclick="switchTab('settle')" id="nav-settle" class="nav-btn nav-btn-active h-full flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
+                    <i class="fa-solid fa-gavel"></i> Settlement
+                </button>
+                <button onclick="switchTab('cashier')" id="nav-cashier" class="nav-btn h-full flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
+                    <i class="fa-solid fa-money-bill-transfer"></i> Cashier <span id="withdrawBadge" class="hidden bg-bear text-white text-[9px] px-1.5 rounded-full">0</span>
+                </button>
+                <button onclick="switchTab('ledger')" id="nav-ledger" class="nav-btn h-full flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
+                    <i class="fa-solid fa-database"></i> Data Ledger
+                </button>
+            </nav>
+
+            <div class="flex items-center gap-3">
+                <div class="text-right hidden lg:block">
+                    <div class="text-[10px] text-gray-500 font-bold uppercase">Connected As</div>
+                    <div class="text-xs font-mono text-white" id="admin-address">0x000...000</div>
+                </div>
+                <button onclick="fetchAdminData()" class="w-8 h-8 rounded-lg bg-[#151515] hover:bg-[#222] hover:text-primary flex items-center justify-center transition border border-[#333]">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 overflow-hidden relative bg-[#020202]">
+            
+            <!-- TAB 1: SETTLEMENT (GOD MODE) -->
+            <div id="tab-settle" class="tab-content tab-active h-full p-6 overflow-y-auto">
+                <div class="max-w-2xl mx-auto mt-10">
+                    <div class="glass rounded-3xl p-1 border border-primary/20 shadow-[0_0_50px_rgba(0,255,148,0.05)]">
+                        <div class="bg-[#080808] rounded-[20px] p-8 relative overflow-hidden">
+                            <!-- Background decoration -->
+                            <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                            
+                            <div class="relative z-10">
+                                <h2 class="text-2xl font-display font-bold text-white mb-2">Market Settlement</h2>
+                                <p class="text-sm text-gray-500 mb-8">Determine the outcome of the daily rounds. This action is irreversible.</p>
+
+                                <div class="space-y-6">
+                                    <!-- Asset Selector -->
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div onclick="selectAsset('BTC')" id="asset-BTC" class="asset-card cursor-pointer bg-[#111] p-4 rounded-xl border border-[#222] hover:border-white transition group">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-xs font-bold text-gray-400 group-hover:text-white">BITCOIN</span>
+                                                <i class="fa-brands fa-bitcoin text-[#F7931A] text-xl"></i>
+                                            </div>
+                                            <div class="text-lg font-mono font-bold">BTC/USD</div>
+                                        </div>
+                                        <div onclick="selectAsset('ETH')" id="asset-ETH" class="asset-card cursor-pointer bg-[#111] p-4 rounded-xl border border-[#222] hover:border-white transition group">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-xs font-bold text-gray-400 group-hover:text-white">ETHEREUM</span>
+                                                <i class="fa-brands fa-ethereum text-[#627EEA] text-xl"></i>
+                                            </div>
+                                            <div class="text-lg font-mono font-bold">ETH/USD</div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="settleAsset" value="">
+
+                                    <!-- Winner Selector -->
+                                    <div>
+                                        <label class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-3 block">Select Winning Outcome</label>
+                                        <div class="grid grid-cols-3 gap-3">
+                                            <button onclick="selectWinner('BEAR')" id="btn-BEAR" class="winner-btn h-14 rounded-xl border border-bear/20 bg-bear/5 text-bear font-bold text-sm hover:bg-bear hover:text-black transition flex items-center justify-center gap-2">
+                                                <i class="fa-solid fa-arrow-trend-down"></i> BEAR
+                                            </button>
+                                            <button onclick="selectWinner('NEUTRAL')" id="btn-NEUTRAL" class="winner-btn h-14 rounded-xl border border-gray-700 bg-gray-800 text-gray-400 font-bold text-sm hover:bg-white hover:text-black transition flex items-center justify-center gap-2">
+                                                <i class="fa-solid fa-minus"></i> NEUTRAL
+                                            </button>
+                                            <button onclick="selectWinner('BULL')" id="btn-BULL" class="winner-btn h-14 rounded-xl border border-bull/20 bg-bull/5 text-bull font-bold text-sm hover:bg-bull hover:text-black transition flex items-center justify-center gap-2">
+                                                <i class="fa-solid fa-arrow-trend-up"></i> BULL
+                                            </button>
+                                        </div>
+                                        <input type="hidden" id="selectedWinner">
+                                    </div>
+
+                                    <!-- Action -->
+                                    <button onclick="executeSettlement()" id="executeBtn" class="w-full mt-4 bg-white hover:bg-primary text-black font-bold text-sm py-5 rounded-xl uppercase tracking-[0.2em] shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3">
+                                        <span>Execute Smart Contract</span> <i class="fa-solid fa-bolt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: CASHIER (WITHDRAWALS) -->
+            <div id="tab-cashier" class="tab-content h-full flex flex-col">
+                <div class="px-6 py-4 border-b border-[#1A1A1A] bg-[#050505] flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-wallet text-gold"></i> Withdrawal Requests</h2>
+                    <div class="flex gap-2">
+                        <span class="text-xs text-gray-500 flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-gold"></div> Pending</span>
+                        <span class="text-xs text-gray-500 flex items-center gap-2 ml-2"><div class="w-2 h-2 rounded-full bg-green-500"></div> Completed</span>
+                    </div>
+                </div>
+                
+                <div class="flex-1 overflow-auto p-6">
+                    <div class="glass rounded-2xl overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-[#111] border-b border-[#222]">
+                                <tr>
+                                    <th class="p-4 text-[10px] font-bold text-gray-500 uppercase">Date</th>
+                                    <th class="p-4 text-[10px] font-bold text-gray-500 uppercase">User Address</th>
+                                    <th class="p-4 text-[10px] font-bold text-gray-500 uppercase text-right">Amount</th>
+                                    <th class="p-4 text-[10px] font-bold text-gray-500 uppercase text-center">Status</th>
+                                    <th class="p-4 text-[10px] font-bold text-gray-500 uppercase text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="withdrawalBody" class="divide-y divide-[#1A1A1A]">
+                                <!-- JS Injected -->
+                                <tr><td colspan="5" class="text-center py-10 text-gray-600">Loading requests...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: LEDGER (DATA) -->
+            <div id="tab-ledger" class="tab-content h-full flex flex-col">
+                <div class="px-6 py-4 border-b border-[#1A1A1A] bg-[#050505] flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-white">Transaction Ledger</h2>
+                    <div class="flex gap-2">
+                        <button onclick="filterTable('ALL')" class="filter-btn px-3 py-1 rounded-lg text-[10px] font-bold bg-white text-black border border-white">ALL</button>
+                        <button onclick="filterTable('WON')" class="filter-btn px-3 py-1 rounded-lg text-[10px] font-bold bg-[#111] text-gray-500 border border-[#333]">WINS</button>
+                        <button onclick="filterTable('WITHDRAW')" class="filter-btn px-3 py-1 rounded-lg text-[10px] font-bold bg-[#111] text-gray-500 border border-[#333]">CASH</button>
+                    </div>
+                </div>
+                
+                <div class="flex-1 overflow-auto p-6">
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-[#111] p-4 rounded-xl border border-[#222]">
+                            <div class="text-[10px] text-gray-500 font-bold uppercase mb-1">Total Real Volume</div>
+                            <div class="text-xl font-mono text-white font-bold" id="statRealVol">$0.00</div>
+                        </div>
+                        <div class="bg-[#111] p-4 rounded-xl border border-[#222]">
+                            <div class="text-[10px] text-gray-500 font-bold uppercase mb-1">Pending Payouts (Bonus)</div>
+                            <div class="text-xl font-mono text-gold font-bold" id="statPendingBonus">$0.00</div>
+                        </div>
+                        <div class="bg-[#111] p-4 rounded-xl border border-[#222]">
+                            <div class="text-[10px] text-gray-500 font-bold uppercase mb-1">Pending Withdrawals</div>
+                            <div class="text-xl font-mono text-white font-bold" id="statPendingWithdraw">$0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="glass rounded-2xl overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-[#111] border-b border-[#222]">
+                                <tr>
+                                    <th class="p-3 text-[10px] font-bold text-gray-500 uppercase">Time</th>
+                                    <th class="p-3 text-[10px] font-bold text-gray-500 uppercase">Type</th>
+                                    <th class="p-3 text-[10px] font-bold text-gray-500 uppercase">User</th>
+                                    <th class="p-3 text-[10px] font-bold text-gray-500 uppercase text-right">Amount</th>
+                                    <th class="p-3 text-[10px] font-bold text-gray-500 uppercase text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledgerBody" class="divide-y divide-[#1A1A1A]">
+                                <tr><td colspan="5" class="text-center py-10 text-gray-600">Loading ledger...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby3NQQBOQd8wMHzrQRx33xXGjKk95V1RrtmnfFgCf3D0re0fV7fehHFsRcWjvvchSmoaQ/exec";
+        const ADMIN_WALLET = "0x91A6d3FFFe7491DeB69130523B48ed2f5336FE6b"; 
+        // ============================================
+
+        let allData = [];
+        let pendingWithdrawals = [];
+        let currentFilter = 'ALL';
+
+        // --- NAVIGATION ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('tab-active'));
+            document.getElementById(`tab-${tabId}`).classList.add('tab-active');
+            
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('nav-btn-active'));
+            document.getElementById(`nav-${tabId}`).classList.add('nav-btn-active');
+        }
+
+        function selectAsset(asset) {
+            document.querySelectorAll('.asset-card').forEach(el => {
+                el.classList.remove('border-white', 'bg-[#222]');
+                el.classList.add('border-[#222]', 'bg-[#111]');
+            });
+            document.getElementById(`asset-${asset}`).classList.remove('border-[#222]', 'bg-[#111]');
+            document.getElementById(`asset-${asset}`).classList.add('border-white', 'bg-[#222]');
+            document.getElementById('settleAsset').value = asset;
+        }
+
+        function selectWinner(side) {
+            document.querySelectorAll('.winner-btn').forEach(b => {
+                b.classList.remove('ring-2', 'ring-white');
+                b.classList.add('opacity-50');
+            });
+            const btn = document.getElementById(`btn-${side}`);
+            btn.classList.add('ring-2', 'ring-white');
+            btn.classList.remove('opacity-50');
+            document.getElementById('selectedWinner').value = side;
+        }
+
+        // --- CONNECTION ---
+        async function connectAdmin() {
+            if (!window.ethereum) return alert("No Wallet Found");
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            const signer = provider.getSigner();
+            const address = await signer.getAddress();
+
+            if (address.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+                document.getElementById('login-error').classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('login-overlay').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('admin-address').innerText = address;
+            
+            fetchAdminData();
+        }
+
+        // --- DATA FETCHING ---
+        async function fetchAdminData() {
+            const ledgerBody = document.getElementById('ledgerBody');
+            const withdrawBody = document.getElementById('withdrawalBody');
+            
+            ledgerBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-primary animate-pulse">Syncing...</td></tr>';
+            
+            try {
+                const res = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: "get_admin_data", user: ADMIN_WALLET })
+                });
+                
+                const data = await res.json();
+                
+                if(data.allTransactions) {
+                    allData = data.allTransactions;
+                    processData();
+                } else {
+                    ledgerBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-red-500">No data returned.</td></tr>';
+                }
+            } catch(e) {
+                console.error("Fetch Error:", e);
+                ledgerBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-red-500">Connection Error.</td></tr>';
+            }
+        }
+
+        function processData() {
+            // Separate Data
+            pendingWithdrawals = allData.filter(tx => tx.action === "WITHDRAW" && tx.status === "PROCESSING");
+            
+            // Update Badges & Stats
+            document.getElementById('withdrawBadge').innerText = pendingWithdrawals.length;
+            if(pendingWithdrawals.length > 0) document.getElementById('withdrawBadge').classList.remove('hidden');
+            else document.getElementById('withdrawBadge').classList.add('hidden');
+
+            renderWithdrawals();
+            renderLedger();
+            calcStats();
+        }
+
+        // --- RENDER WITHDRAWALS ---
+        function renderWithdrawals() {
+            const tbody = document.getElementById('withdrawalBody');
+            tbody.innerHTML = '';
+
+            if(pendingWithdrawals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-600">No pending withdrawals.</td></tr>';
+                return;
+            }
+
+            pendingWithdrawals.forEach(tx => {
+                const row = `
+                    <tr class="hover:bg-[#0A0A0A] border-b border-[#1A1A1A]">
+                        <td class="p-4 text-xs text-gray-400 font-mono">${new Date(tx.date).toLocaleDateString()}</td>
+                        <td class="p-4 text-xs font-mono text-white">
+                            <span class="cursor-pointer hover:text-primary" onclick="copyToClip('${tx.user}')">${tx.user} <i class="fa-regular fa-copy ml-1"></i></span>
+                        </td>
+                        <td class="p-4 text-xs font-mono font-bold text-right text-white">$${parseFloat(tx.amount).toFixed(2)}</td>
+                        <td class="p-4 text-center"><span class="bg-gold/10 text-gold border border-gold/30 px-2 py-0.5 rounded text-[10px] font-bold">PENDING</span></td>
+                        <td class="p-4 text-right flex justify-end gap-2">
+                            <button onclick="manageWithdrawal('${tx.uniqueId}', 'REJECTED', '${tx.user}', ${tx.amount})" class="w-8 h-8 rounded bg-red-900/20 border border-red-900 text-red-500 hover:bg-red-600 hover:text-white transition"><i class="fa-solid fa-xmark"></i></button>
+                            <button onclick="manageWithdrawal('${tx.uniqueId}', 'COMPLETED', '${tx.user}', ${tx.amount})" class="w-8 h-8 rounded bg-green-900/20 border border-green-900 text-green-500 hover:bg-green-600 hover:text-white transition"><i class="fa-solid fa-check"></i></button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // --- RENDER LEDGER ---
+        function renderLedger() {
+            const tbody = document.getElementById('ledgerBody');
+            tbody.innerHTML = '';
+
+            const sorted = allData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            const filtered = sorted.filter(tx => {
+                if(currentFilter === 'ALL') return true;
+                if(currentFilter === 'WON') return tx.status === 'WON';
+                if(currentFilter === 'WITHDRAW') return tx.action === 'WITHDRAW';
+                return true;
+            });
+
+            filtered.forEach(tx => {
+                let typeHtml = `<span class="text-gray-500 font-bold text-[10px]">${tx.action}</span>`;
+                let amountHtml = `<span class="text-gray-400 font-mono">$${tx.amount}</span>`;
+                let statusHtml = `<span class="text-gray-600 text-[10px]">${tx.status}</span>`;
+
+                if(tx.action === 'BET') {
+                    typeHtml = `<span class="text-primary font-bold text-[10px] border border-primary/30 px-1 rounded bg-primary/10">BET ${tx.asset}</span>`;
+                    if(tx.status === 'WON') statusHtml = `<span class="text-bull font-bold text-[10px]">WON</span>`;
+                    if(tx.status === 'LOST') statusHtml = `<span class="text-bear text-[10px]">LOST</span>`;
+                } else if (tx.action === 'WITHDRAW') {
+                    typeHtml = `<span class="text-gold font-bold text-[10px] border border-gold/30 px-1 rounded bg-gold/10">CASH OUT</span>`;
+                    amountHtml = `<span class="text-gold font-mono font-bold">-$${tx.amount}</span>`;
+                    if(tx.status === 'COMPLETED') statusHtml = `<span class="text-bull font-bold text-[10px]">PAID</span>`;
+                }
+
+                const row = `
+                    <tr class="hover:bg-[#0A0A0A]">
+                        <td class="p-3 text-[10px] text-gray-500 font-mono">${new Date(tx.date).toLocaleString().split(',')[0]}</td>
+                        <td class="p-3">${typeHtml}</td>
+                        <td class="p-3 text-[10px] font-mono text-gray-400 hover:text-white cursor-pointer truncate max-w-[100px]" title="${tx.user}">${tx.user.substring(0,6)}...</td>
+                        <td class="p-3 text-right text-xs">${amountHtml}</td>
+                        <td class="p-3 text-center">${statusHtml}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // --- ACTIONS ---
+
+        async function manageWithdrawal(rowId, status, user, amount) {
+            if(!confirm(`Mark this withdrawal as ${status}?`)) return;
+            
+            // Optimistic UI update
+            const btn = event.currentTarget;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ 
+                        action: "manage_withdrawal", 
+                        user: ADMIN_WALLET, // Auth check
+                        targetUser: user,
+                        amount: amount,
+                        rowId: rowId, // Unique ID logic (Timestamp or index from GAS)
+                        status: status
+                    })
+                });
+                
+                setTimeout(() => {
+                    alert(`Processed: ${status}`);
+                    fetchAdminData();
+                }, 1500);
+
+            } catch(e) { alert("Error processing withdrawal"); }
+        }
+
+        async function executeSettlement() {
+            const asset = document.getElementById('settleAsset').value;
+            const winner = document.getElementById('selectedWinner').value;
+            if(!asset || !winner) return alert("Select Asset and Winner");
+
+            const btn = document.getElementById('executeBtn');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processing Chain...';
+            
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ action: "settle_round", user: ADMIN_WALLET, asset: asset, winningSide: winner })
+                });
+                setTimeout(() => {
+                    alert("Market Settled Successfully");
+                    btn.innerHTML = '<span>Execute Smart Contract</span> <i class="fa-solid fa-bolt"></i>';
+                    fetchAdminData();
+                }, 2000);
+            } catch(e) { alert("Error"); btn.innerHTML = "Retry"; }
+        }
+
+        function calcStats() {
+            let realVol = 0;
+            let pendingBonus = 0;
+            let pendingCash = 0;
+
+            allData.forEach(tx => {
+                const amt = parseFloat(tx.amount || 0);
+                if(tx.action === 'BET' && tx.currency !== 'BONUS') realVol += amt;
+                if(tx.action === 'BET' && tx.status === 'WON' && tx.currency === 'BONUS') pendingBonus += parseFloat(tx.payout);
+                if(tx.action === 'WITHDRAW' && tx.status === 'PROCESSING') pendingCash += amt;
+            });
+
+            document.getElementById('statRealVol').innerText = `$${realVol.toFixed(2)}`;
+            document.getElementById('statPendingBonus').innerText = pendingBonus.toFixed(2);
+            document.getElementById('statPendingWithdraw').innerText = `$${pendingCash.toFixed(2)}`;
+        }
+
+        function filterTable(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('bg-white', 'text-black', 'border-white');
+                b.classList.add('bg-[#111]', 'text-gray-500', 'border-[#333]');
+            });
+            event.target.classList.remove('bg-[#111]', 'text-gray-500', 'border-[#333]');
+            event.target.classList.add('bg-white', 'text-black', 'border-white');
+            renderLedger();
+        }
+
+        function copyToClip(text) { navigator.clipboard.writeText(text); alert("Copied Address"); }
+
+        // Initial Tab
+        switchTab('settle');
+    </script>
+</body>
+</html>
