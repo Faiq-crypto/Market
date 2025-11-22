@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BasedMarket | Pro Protocol</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <!-- TradingView Library -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Space Grotesk', 'sans-serif'] },
+                    colors: {
+                        bg: '#020202',
+                        card: '#0C0C0C',
+                        surface: '#121212',
+                        primary: '#00FF94',
+                        primaryDim: 'rgba(0, 255, 148, 0.1)',
+                        bear: '#FF2E2E',
+                        bull: '#00D95F',
+                        gold: '#FFD700',
+                        base: '#0052FF'
+                    },
+                    animation: { 
+                        'marquee': 'marquee 30s linear infinite',
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both'
+                    },
+                    keyframes: { 
+                        marquee: { '0%': { transform: 'translateX(100%)' }, '100%': { transform: 'translateX(-100%)' } },
+                        shake: { 
+                            '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                            '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                            '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                            '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #020202; color: white; -webkit-tap-highlight-color: transparent; }
+        
+        /* Glass & Cards */
+        .glass { background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(16px); border-top: 1px solid rgba(255,255,255,0.08); }
+        .card-gradient { background: linear-gradient(180deg, #121212 0%, #050505 100%); border: 1px solid #1F1F1F; }
+        .gold-card { background: radial-gradient(circle at top right, #4a3b00 0%, #000000 100%); border: 1px solid #FFD700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.15); }
+        .mystery-box-card { background: radial-gradient(circle at top right, #1a1500 0%, #050505 100%); border: 1px solid #332a00; position: relative; overflow: hidden; }
+        .news-card { background: linear-gradient(90deg, #0f0f0f 0%, #0a0a0a 100%); border: 1px solid #1a1a1a; transition: all 0.3s ease; }
+        .news-card:active { transform: scale(0.98); border-color: #333; }
+
+        /* UI Elements */
+        .nav-active { color: #00FF94; text-shadow: 0 0 12px rgba(0,255,148,0.4); }
+        .nav-inactive { color: #666; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .live-dot { width: 6px; height: 6px; background-color: #00FF94; border-radius: 50%; box-shadow: 0 0 8px #00FF94; animation: blink 2s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        
+        /* Chart & Bet Boxes */
+        .chart-wrapper { position: relative; height: 200px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid #222; margin-bottom: 16px; background: #000; }
+        .bet-box { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 4px; border-radius: 12px; border: 1px solid #1F1F1F; background: #0E0E0E; transition: all 0.2s; cursor: pointer; position: relative; overflow: hidden; min-height: 70px; }
+        .bet-box:active { transform: scale(0.96); }
+        .joined-bear { background: linear-gradient(180deg, #450a0a 0%, #200505 100%) !important; border-color: #FF2E2E !important; pointer-events: none; }
+        .joined-neutral { background: linear-gradient(180deg, #374151 0%, #1f2937 100%) !important; border-color: #9ca3af !important; pointer-events: none; }
+        .joined-bull { background: linear-gradient(180deg, #052e16 0%, #021505 100%) !important; border-color: #00D95F !important; pointer-events: none; }
+        .bet-disabled { opacity: 0.3; pointer-events: none; filter: grayscale(100%); }
+        
+        /* Payout Table */
+        .payout-table { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
+        .payout-table th { text-align: left; color: #555; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 0 8px 8px 8px; letter-spacing: 0.05em; }
+        .payout-table td { background: #0E0E0E; padding: 12px 8px; font-size: 11px; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; }
+        .payout-table tr td:first-child { border-left: 1px solid #1a1a1a; border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+        .payout-table tr td:last-child { border-right: 1px solid #1a1a1a; border-top-right-radius: 8px; border-bottom-right-radius: 8px; text-align: right; }
+        
+        /* Referral Milestones */
+        .milestone-dot { width: 12px; height: 12px; border-radius: 50%; background: #222; border: 2px solid #444; position: relative; z-index: 10; }
+        .milestone-active { background: #00FF94; border-color: #00FF94; box-shadow: 0 0 10px #00FF94; }
+
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden font-sans">
+
+    <!-- TICKER -->
+    <div class="h-7 bg-[#05120a] border-b border-primary/10 flex items-center overflow-hidden whitespace-nowrap relative z-10">
+        <div class="animate-marquee text-[9px] font-mono font-bold text-primary flex gap-10 uppercase tracking-widest">
+            <span class="flex items-center gap-2"><i class="fa-solid fa-globe"></i> GLOBAL VOL: $6.2M</span>
+            <span class="text-bear">BTC #1401: BEAR WON</span>
+            <span class="text-bull">SOL #892: BULL WON</span>
+            <span class="text-gold">CAMPAIGN: MYSTERY BOX LIVE</span>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="px-5 py-3 flex justify-between items-center z-10 bg-[#020202]/90 backdrop-blur-sm border-b border-[#151515]">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 bg-gradient-to-br from-primary to-emerald-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(0,255,148,0.2)]">
+                <i class="fa-solid fa-cube text-black text-sm"></i>
+            </div>
+            <div class="leading-none">
+                <h1 class="font-display font-bold text-lg tracking-tight text-white">BASED<span class="text-primary">MARKET</span></h1>
+                <span class="text-[8px] text-gray-500 uppercase tracking-[0.2em] font-bold">Base Chain</span>
+            </div>
+        </div>
+        <button onclick="connectWallet()" id="walletBtn" class="bg-[#111] border border-[#222] text-[10px] font-bold py-2 px-4 rounded-full hover:border-primary hover:text-primary transition-all flex items-center gap-2 uppercase tracking-wide group">
+            <i class="fa-solid fa-wallet text-gray-400 group-hover:text-primary"></i> <span id="walletText">Connect</span>
+        </button>
+    </header>
+
+    <!-- MAIN SCROLL AREA -->
+    <main class="flex-1 overflow-y-auto no-scrollbar pb-28 bg-[#020202]" id="mainContainer">
+        
+        <!-- HOME VIEW -->
+        <div id="view-home" class="px-4 pt-5 pb-10">
+            
+            <!-- ADMIN PANEL -->
+            <div id="adminPanel" class="hidden mb-6 p-4 rounded-xl border border-red-900/50 bg-red-950/10">
+                <div class="flex items-center gap-2 mb-3 text-red-500 font-bold text-xs uppercase tracking-widest">
+                    <i class="fa-solid fa-gavel"></i> Admin Settlement
+                </div>
+                <div class="grid grid-cols-3 gap-3 mb-3">
+                    <div>
+                        <label class="text-[9px] text-gray-400 block mb-1">Asset</label>
+                        <select id="adminAsset" class="w-full bg-black border border-gray-800 rounded text-xs p-1"><option value="BTC">BTC</option><option value="ETH">ETH</option></select>
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-gray-400 block mb-1">Winner</label>
+                        <select id="adminWinner" class="w-full bg-black border border-gray-800 rounded text-xs p-1"><option value="BEAR">BEAR</option><option value="NEUTRAL">NEUTRAL</option><option value="BULL">BULL</option></select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="settleRound()" id="btnSettle" class="w-full bg-red-600 text-white font-bold text-[10px] py-2 rounded-lg hover:bg-red-500">SETTLE</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- POOL TIMER -->
+            <div class="mb-5 text-center space-y-2">
+                 <div class="inline-flex items-center gap-2 bg-gray-900/50 border border-primary/20 px-4 py-1.5 rounded-full">
+                     <span class="live-dot" id="statusDot"></span>
+                     <span class="text-[10px] font-mono text-primary font-bold tracking-wider" id="poolTimer">Loading...</span>
+                 </div>
+                 <p class="text-[9px] text-gray-400 max-w-[80%] mx-auto">
+                     Daily Round Closes at <span class="text-white font-bold">15:00 GMT</span>. Winners determined by closing price.
+                 </p>
+            </div>
+
+            <!-- TABS -->
+            <div class="flex p-1 bg-[#0C0C0C] rounded-xl mb-6 border border-[#1F1F1F]">
+                <button onclick="switchHomeTab('live')" id="tab-live" class="flex-1 py-2 rounded-lg text-[10px] tracking-widest font-bold bg-primary text-black shadow-[0_0_10px_rgba(0,255,148,0.3)] transition-all">LIVE</button>
+                <button onclick="switchHomeTab('upcoming')" id="tab-upcoming" class="flex-1 py-2 rounded-lg text-[10px] tracking-widest font-bold text-gray-500 hover:text-white transition-all">UPCOMING</button>
+                <button onclick="switchHomeTab('ended')" id="tab-ended" class="flex-1 py-2 rounded-lg text-[10px] tracking-widest font-bold text-gray-500 hover:text-white transition-all">ENDED</button>
+            </div>
+
+            <!-- SECTION: LIVE -->
+            <div id="section-live" class="space-y-6">
+                <!-- BTC & ETH will be injected here by JS -->
+                
+                <!-- MARKET INSIGHTS (Integrated from gaga.html) -->
+                <div class="mt-8 pt-6 border-t border-[#151515]">
+                    <div class="flex items-center justify-between mb-4 px-1">
+                        <h2 class="text-sm font-display font-bold text-white uppercase tracking-wide">Market Insights</h2>
+                        <span class="text-[9px] text-primary bg-primary/10 px-2 py-1 rounded-full">Live Feed</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="news-card p-3 rounded-xl flex gap-4 items-start cursor-pointer group">
+                            <div class="w-16 h-16 rounded-lg bg-cover bg-center flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1518546305927-5a555bb7020d?q=80&w=200&auto=format&fit=crop');"></div>
+                            <div class="flex-1">
+                                <h3 class="text-xs font-bold text-gray-200 leading-tight mb-2 line-clamp-2 group-hover:text-primary transition">Bitcoin Breaks Key Resistance: Institutions Accelerate Accumulation</h3>
+                                <div class="flex justify-between items-center text-[9px] text-gray-500"><span>CoinDesk • 2h ago</span><span><i class="fa-regular fa-eye"></i> 2.4k</span></div>
+                            </div>
+                        </div>
+                        <div class="news-card p-3 rounded-xl flex gap-4 items-start cursor-pointer group">
+                            <div class="w-16 h-16 rounded-lg bg-cover bg-center flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1622630998477-20aa696fa405?q=80&w=200&auto=format&fit=crop');"></div>
+                            <div class="flex-1">
+                                <h3 class="text-xs font-bold text-gray-200 leading-tight mb-2 line-clamp-2 group-hover:text-primary transition">Solana Network Speed Expected to Double in Q4 with Firedancer</h3>
+                                <div class="flex justify-between items-center text-[9px] text-gray-500"><span>TheBlock • 3h ago</span><span><i class="fa-regular fa-eye"></i> 1.9k</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: UPCOMING -->
+            <div id="section-upcoming" class="hidden space-y-6">
+                <div class="text-center mb-4">
+                    <h2 class="text-xs font-bold text-gray-400 uppercase">Next Round</h2>
+                    <div class="text-xl font-display font-bold text-white mt-1">Starts Tomorrow 00:00 GMT</div>
+                </div>
+                <div id="upcoming-container" class="space-y-4 opacity-75 pointer-events-none grayscale"></div>
+            </div>
+
+            <!-- SECTION: ENDED -->
+            <div id="section-ended" class="hidden space-y-3">
+                 <div class="card-gradient rounded-2xl p-3 flex justify-between items-center border border-bear/30 bg-bear/5">
+                     <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-[#F7931A] flex items-center justify-center text-black text-xs font-bold">BTC</div><div><div class="text-xs font-bold text-white">BTC Round #1399</div><div class="text-[9px] text-gray-400">Bear Market Structure</div></div></div>
+                     <div class="text-right"><div class="text-xs font-bold text-bear">BEAR WON</div><div class="text-[9px] text-white font-mono">Price: $94,230</div></div>
+                 </div>
+            </div>
+        </div>
+
+        <!-- REWARDS VIEW -->
+        <div id="view-rewards" class="hidden px-4 pt-6 pb-10">
+            <!-- MYSTERY BOX -->
+            <div class="mystery-box-card rounded-3xl p-6 mb-6 text-center">
+                <div class="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
+                <div class="relative z-10">
+                    <div id="box-icon-container" class="w-20 h-20 mx-auto mb-2 flex items-center justify-center text-5xl text-gold drop-shadow-[0_0_15px_rgba(255,215,0,0.6)] animate-pulse-fast">
+                        <i class="fa-solid fa-box"></i>
+                    </div>
+                    <h2 class="text-xl font-display font-bold text-white mb-1 uppercase tracking-widest">Mystery Box</h2>
+                    
+                    <div id="mystery-locked">
+                        <p class="text-xs text-gray-400 mb-4 px-4">Place a trade to unlock <span class="text-gold font-bold font-mono">$6 - $25 USDC</span>.</p>
+                        <button onclick="switchBottomTab('home')" class="w-full py-3 rounded-xl bg-gradient-to-r from-gold to-yellow-700 text-black font-bold text-xs uppercase tracking-wide hover:brightness-110 transition-all shadow-lg">Bet to Unlock</button>
+                    </div>
+
+                    <div id="mystery-unlocked" class="hidden">
+                        <p class="text-xs text-green-400 mb-4 font-bold">Box Unlocked! Open now.</p>
+                        <button onclick="openMysteryBox()" class="w-full py-3 rounded-xl bg-gradient-to-r from-primary to-emerald-600 text-black font-bold text-xs uppercase tracking-wide animate-bounce shadow-[0_0_20px_rgba(0,255,148,0.4)]">Open Now</button>
+                    </div>
+
+                    <div id="mystery-revealed" class="hidden">
+                        <div class="text-xs text-gray-400 mb-2">Total Rewards Claimed</div>
+                        <div class="text-3xl font-bold text-gold font-mono mb-1" id="reward-amount">$0.00</div>
+                        <div class="text-[10px] text-gray-500 uppercase tracking-wider">Lifetime Bonus Earned</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REFERRAL SYSTEM (From gaga.html) -->
+            <div class="mb-6">
+                <h3 class="text-sm font-bold text-white mb-4 pl-1 flex items-center gap-2"><i class="fa-solid fa-users text-primary"></i> Referral Milestones</h3>
+                <div class="card-gradient rounded-3xl p-6 border border-gray-800">
+                    <p class="text-xs text-gray-400 mb-6">Earn <span class="text-white font-bold">$1</span> for every friend.</p>
+                    <div class="relative pb-8">
+                        <div class="absolute top-1.5 left-2 right-2 h-0.5 bg-[#333]"></div>
+                        <div class="flex justify-between relative z-10">
+                            <div class="flex flex-col items-center gap-2"><div class="milestone-dot milestone-active"></div><div class="text-center"><div class="text-[9px] font-bold text-gray-400">5 Refs</div><div class="text-[9px] text-gold font-bold">$5</div></div></div>
+                            <div class="flex flex-col items-center gap-2"><div class="milestone-dot"></div><div class="text-center"><div class="text-[9px] font-bold text-gray-500">10 Refs</div><div class="text-[9px] text-gray-600">$10</div></div></div>
+                            <div class="flex flex-col items-center gap-2"><div class="milestone-dot"></div><div class="text-center"><div class="text-[9px] font-bold text-gray-500">25 Refs</div><div class="text-[9px] text-gray-600">$25</div></div></div>
+                            <div class="flex flex-col items-center gap-2"><div class="milestone-dot"></div><div class="text-center"><div class="text-[9px] font-bold text-gray-500">50 Refs</div><div class="text-[9px] text-gray-600">$50</div></div></div>
+                        </div>
+                    </div>
+                    <div class="mt-2 bg-black p-3 rounded-xl border border-gray-800 flex items-center justify-between">
+                         <span class="text-[10px] text-gray-500 font-mono truncate max-w-[150px]" id="refLinkBox">Connect Wallet</span>
+                         <button onclick="copyRef()" class="text-primary font-bold text-xs uppercase">Copy Link</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 7 DAY CHALLENGE -->
+            <div class="card-gradient rounded-3xl p-6 relative overflow-hidden border-t border-gold/30">
+                <div class="absolute -right-6 -top-6 text-gold/10 text-9xl"><i class="fa-solid fa-trophy"></i></div>
+                <div class="relative z-10">
+                    <h3 class="text-lg font-bold text-white mb-1 text-gold">7-Day Challenge</h3>
+                    <p class="text-xs text-gray-400 mb-4">Place a bet for 7 consecutive days.</p>
+                    <div class="flex justify-between mb-2">
+                         <div class="w-8 h-8 rounded-full bg-primary text-black border border-primary flex items-center justify-center text-[10px] font-bold">1</div>
+                         <div class="w-8 h-8 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[10px] text-gray-500">2</div>
+                         <div class="w-8 h-8 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[10px] text-gray-500">3</div>
+                         <div class="w-8 h-8 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[10px] text-gray-500">4</div>
+                         <div class="w-8 h-8 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[10px] text-gray-500">5</div>
+                         <div class="w-8 h-8 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[10px] text-gray-500">6</div>
+                         <div class="w-8 h-8 rounded-full bg-gold text-black font-bold flex items-center justify-center text-[10px]"><i class="fa-solid fa-gift"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PROFILE VIEW -->
+        <div id="view-profile" class="hidden px-4 pt-6">
+            <!-- ID Card -->
+            <div class="glass rounded-3xl p-6 relative overflow-hidden border border-gray-800 mb-6">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                <div class="relative z-10 flex items-center gap-4">
+                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#111] to-[#000] flex items-center justify-center border border-[#333] shadow-lg">
+                        <i class="fa-solid fa-user-astronaut text-2xl text-gray-400"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <h2 class="text-lg font-display font-bold text-white tracking-wide" id="profileAddress">Connect Wallet</h2>
+                        </div>
+                        <div class="flex gap-2">
+                            <span class="text-[9px] bg-[#1a1a1a] text-gray-400 px-2 py-0.5 rounded border border-[#333] uppercase tracking-wider font-bold">Tier 1 Trader</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Balances Grid -->
+            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 px-1">Assets</h3>
+            <div class="grid grid-cols-1 gap-4 mb-6">
+                <!-- Bonus Balance (Playable) -->
+                <div class="bg-[#0C0C0C] p-4 rounded-2xl border border-[#1F1F1F] relative overflow-hidden">
+                    <div class="absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-gold/10 to-transparent"></div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-5 h-5 rounded-full bg-gold text-black flex items-center justify-center text-[10px] font-bold"><i class="fa-solid fa-ticket"></i></div>
+                        <span class="text-[10px] text-gold font-bold uppercase">Playable Bonus</span>
+                    </div>
+                    <div class="text-white font-mono font-bold text-lg" id="balanceBonus">0.00</div>
+                    <p class="text-[9px] text-gray-500 mt-1">Use to bet. Winnings go to Withdraw Balance.</p>
+                </div>
+
+                <!-- Withdrawable Balance -->
+                <div class="gold-card rounded-2xl p-5 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-yellow-600/10 to-transparent pointer-events-none"></div>
+                    <div class="flex justify-between items-center relative z-10">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1"><i class="fa-solid fa-crown text-gold text-xs"></i><span class="text-[10px] text-gold/80 font-bold uppercase tracking-widest">Withdrawable Balance</span></div>
+                            <div class="text-3xl font-mono font-bold text-white drop-shadow-md" id="balanceWithdrawable">0.00</div>
+                        </div>
+                        <button onclick="openWithdrawModal()" class="px-3 py-2 rounded-lg bg-gold text-black font-bold text-[10px] uppercase hover:bg-white transition-colors shadow-lg">
+                            Withdraw
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- External Wallets -->
+                <div class="grid grid-cols-2 gap-3">
+                     <div class="bg-[#0C0C0C] p-3 rounded-xl border border-[#1F1F1F] opacity-60">
+                        <div class="flex items-center gap-2 mb-1"><div class="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center"><i class="fa-brands fa-ethereum text-[8px]"></i></div><span class="text-[9px] text-gray-400">Wallet ETH</span></div>
+                        <div class="text-white font-mono text-sm" id="balanceEth">0.0000</div>
+                    </div>
+                    <div class="bg-[#0C0C0C] p-3 rounded-xl border border-[#1F1F1F] opacity-60">
+                        <div class="flex items-center gap-2 mb-1"><div class="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-black font-bold text-[7px]">$</div><span class="text-[9px] text-gray-400">Wallet USDC</span></div>
+                        <div class="text-white font-mono text-sm" id="balanceUsdc">0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WITHDRAWAL LOG -->
+            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 px-1">Withdrawal History</h3>
+            <div class="bg-[#0C0C0C] rounded-2xl border border-[#1F1F1F] p-2 mb-6 min-h-[60px]" id="withdrawalList">
+                 <div class="text-center text-gray-700 text-xs italic pt-2">No active withdrawals.</div>
+            </div>
+
+            <!-- PAYOUTS SECTION -->
+            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 px-1">Payout Ledger</h3>
+            <div class="bg-[#0C0C0C] rounded-2xl border border-[#1F1F1F] overflow-hidden mb-8">
+                <div class="overflow-x-auto">
+                    <table class="payout-table">
+                        <thead><tr><th>Date</th><th>Asset</th><th>Prediction</th><th>Status</th><th class="text-right">Payout</th></tr></thead>
+                        <tbody id="payoutLogBody">
+                            <tr><td colspan="5" class="text-center py-4 text-gray-600 italic text-xs">Connect wallet to synchronize ledger.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- History -->
+            <div class="mt-6">
+                <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 px-2">Activity Log</h3>
+                <div id="historyList" class="text-center text-gray-700 text-xs italic pt-4">Waiting for connection...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav class="fixed bottom-0 w-full glass h-[85px] pb-5 px-4 flex justify-around items-center z-50">
+        <button onclick="switchBottomTab('home')" id="nav-home" class="flex flex-col items-center gap-1.5 nav-active transition-all w-16"><i class="fa-solid fa-house text-lg"></i><span class="text-[9px] font-medium">Markets</span></button>
+        <button onclick="showPerpsToast()" class="flex flex-col items-center gap-1.5 nav-inactive hover:text-white transition-all w-16 opacity-80"><i class="fa-solid fa-chart-line text-lg"></i><span class="text-[9px] font-medium">Perps</span></button>
+        <button onclick="switchBottomTab('rewards')" id="nav-rewards" class="flex flex-col items-center gap-1.5 nav-inactive hover:text-white transition-all w-16 relative"><i class="fa-solid fa-gift text-lg"></i><span class="text-[9px] font-medium">Campaigns</span><div id="nav-dot" class="hidden absolute top-0 right-3 w-2 h-2 bg-red-500 rounded-full animate-bounce"></div></button>
+        <button onclick="switchBottomTab('profile')" id="nav-profile" class="flex flex-col items-center gap-1.5 nav-inactive hover:text-white transition-all w-16"><i class="fa-solid fa-user text-lg"></i><span class="text-[9px] font-medium">Profile</span></button>
+    </nav>
+
+    <!-- BET MODAL -->
+    <div id="betModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/90 backdrop-blur-md p-4 transition-opacity duration-300">
+        <div class="bg-[#0A0A0A] w-full max-w-xs rounded-[24px] p-6 border border-[#222] shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 w-8 h-8 bg-[#111] rounded-full flex items-center justify-center text-gray-500 hover:text-white transition"><i class="fa-solid fa-xmark"></i></button>
+            <div class="text-center mb-4 mt-1"><h3 class="text-lg font-bold text-white">Open Position</h3><div class="text-[10px] text-gray-500 mt-1" id="modalTitle">Prediction</div></div>
+            <div class="space-y-4 mb-6">
+                <div class="grid grid-cols-3 gap-2 bg-[#111] p-1 rounded-xl border border-[#222]">
+                    <button onclick="setCurrency('USDC')" id="btn-curr-usdc" class="py-2 rounded-lg text-[10px] font-bold bg-primary text-black transition-all">USDC</button>
+                    <button onclick="setCurrency('ETH')" id="btn-curr-eth" class="py-2 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white transition-all">ETH</button>
+                    <button onclick="setCurrency('BONUS')" id="btn-curr-bonus" class="py-2 rounded-lg text-[10px] font-bold text-gold hover:text-white transition-all border border-transparent"><i class="fa-solid fa-ticket mr-1"></i>BONUS</button>
+                </div>
+                <div>
+                    <div class="flex justify-between text-[10px] text-gray-500 mb-1"><span class="font-bold uppercase">Amount ($)</span><span>Bal: <span id="modalWalletBalance" class="text-white font-mono">--</span> <span id="modalBalanceTicker">USDC</span></span></div>
+                    <div class="relative"><div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</div><input type="number" id="inputAmount" value="10" min="0.05" max="50" step="0.01" oninput="calcPayout()" class="w-full bg-[#050505] border border-[#222] rounded-xl py-3 pl-7 pr-14 text-white font-mono font-bold text-sm focus:outline-none focus:border-primary transition-colors" placeholder="10.00"><button onclick="setMaxAmount()" class="absolute right-2 top-1.5 bg-[#222] text-[9px] px-2 py-1.5 rounded text-primary border border-[#333] hover:bg-[#333] font-bold active:scale-95 transition">MAX</button></div>
+                </div>
+                <div class="bg-[#111] rounded-xl p-3 space-y-2 border border-[#222]">
+                    <div class="flex justify-between items-center text-xs"><span class="text-gray-500">Side</span><span class="font-bold" id="modalSide">--</span></div>
+                    <div class="flex justify-between items-center text-xs"><span class="text-gray-500">Multiplier</span><span class="text-white font-bold" id="modalMultiplier">--</span></div>
+                    <div class="flex justify-between items-center text-xs pt-2 border-t border-[#222]"><span class="text-primary">Potential Payout</span><span class="text-primary font-bold font-mono text-sm" id="modalPayout">--</span></div>
+                </div>
+            </div>
+            <button onclick="submitBet()" id="confirmBtn" class="w-full bg-primary hover:bg-[#00CC76] text-black font-bold py-3.5 rounded-xl text-sm shadow-[0_0_20px_rgba(0,255,148,0.25)] transition-all active:scale-95">Confirm Payment</button>
+        </div>
+    </div>
+
+    <!-- WITHDRAW MODAL -->
+    <div id="withdrawModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/90 backdrop-blur-md p-4 transition-opacity duration-300">
+        <div class="bg-[#0A0A0A] w-full max-w-xs rounded-[24px] p-6 border border-[#222] shadow-2xl relative border-t-gold/50">
+            <button onclick="closeWithdrawModal()" class="absolute top-4 right-4 w-8 h-8 bg-[#111] rounded-full flex items-center justify-center text-gray-500 hover:text-white transition"><i class="fa-solid fa-xmark"></i></button>
+            <div class="text-center mb-4 mt-1">
+                <div class="w-10 h-10 rounded-full bg-gold/10 flex items-center justify-center mx-auto mb-2 border border-gold/30"><i class="fa-solid fa-paper-plane text-gold"></i></div>
+                <h3 class="text-lg font-bold text-white">Withdraw Funds</h3>
+            </div>
+            <div class="space-y-4 mb-6">
+                <div class="bg-[#111] p-3 rounded-xl border border-[#222]">
+                    <label class="text-[9px] text-gray-500 font-bold uppercase mb-1 block">Receiving Address</label>
+                    <div class="text-xs font-mono text-gray-300 break-all leading-tight" id="withdrawAddress">--</div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-[10px] text-gray-500 mb-1"><span class="font-bold uppercase">Amount ($)</span><span>Available: <span class="text-gold font-mono font-bold" id="withdrawMaxBal">0.00</span></span></div>
+                    <div class="relative"><div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</div><input type="number" id="withdrawAmount" min="5" step="1" class="w-full bg-[#050505] border border-[#222] rounded-xl py-3 pl-7 pr-14 text-white font-mono font-bold text-sm focus:outline-none focus:border-gold transition-colors" placeholder="Min $5.00"><button onclick="setMaxWithdraw()" class="absolute right-2 top-1.5 bg-[#222] text-[9px] px-2 py-1.5 rounded text-gold border border-[#333] hover:bg-[#333] font-bold active:scale-95 transition">MAX</button></div>
+                </div>
+            </div>
+            <button onclick="submitWithdraw()" id="btnWithdrawConfirm" class="w-full bg-gold hover:bg-yellow-400 text-black font-bold py-3.5 rounded-xl text-sm shadow-[0_0_20px_rgba(255,215,0,0.25)] transition-all active:scale-95">Send Withdrawal</button>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-[#111] border border-[#333] text-white px-6 py-3 rounded-full shadow-2xl z-[200] opacity-0 pointer-events-none flex items-center gap-3 min-w-[200px] justify-center"><i class="fa-solid fa-info-circle text-primary"></i><span class="text-xs font-bold" id="toastMsg">Notification</span></div>
+
+    <script>
+        // ============================================================
+        // CONFIGURATION 
+        // ============================================================
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby3NQQBOQd8wMHzrQRx33xXGjKk95V1RrtmnfFgCf3D0re0fV7fehHFsRcWjvvchSmoaQ/exec"; 
+        const ADMIN_WALLET = "0x91A6d3FFFe7491DeB69130523B48ed2f5336FE6b"; 
+        const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+        const CHAIN_ID = 8453; 
+        const BASE_CHAIN_ID_HEX = '0x2105';
+        
+        const ASSETS = [
+            { sym: 'BTC', name: 'BTC / USD', icon: 'fa-brands fa-bitcoin', color: '#F7931A' },
+            { sym: 'ETH', name: 'ETH / USD', icon: 'fa-brands fa-ethereum', color: '#627EEA' },
+            { sym: 'SOL', name: 'SOL / USD', icon: 'fa-solid fa-sun', color: '#000000' },
+            { sym: 'DOGE', name: 'DOGE / USD', icon: 'fa-solid fa-dog', color: '#BA9F33' }
+        ];
+        // ============================================================
+
+        let userAddress = null;
+        let provider, signer;
+        let selectedCurrency = 'USDC';
+        let currentBet = {};
+        let prices = {}; 
+        let userEthBalanceRaw = 0.0; 
+        let userUsdcBalanceRaw = 0.0; 
+        
+        // New separated balances
+        let userBonusBalanceRaw = 0.0; // Playable (Ticket)
+        let userWithdrawableRaw = 0.0; // Real Money (Withdrawable)
+        let userLifetimeReward = 0.0;  // Total claimed from mystery box (Record)
+
+        let isRoundLive = true; 
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initTimeLogic();
+            renderMarkets();
+            fetchPrices();
+            setInterval(fetchPrices, 5000);
+            setInterval(updateTimer, 1000);
+        });
+
+        function initTimeLogic() {
+            const utcHours = new Date().getUTCHours();
+            if(utcHours >= 15) { // After 15:00 GMT
+                isRoundLive = false;
+                document.getElementById('statusDot').style.backgroundColor = '#FF2E2E';
+                document.getElementById('poolTimer').className = "text-[10px] font-mono text-bear font-bold tracking-wider";
+            } else {
+                isRoundLive = true;
+            }
+        }
+
+        function updateTimer() {
+            const now = new Date();
+            let target = new Date();
+            if(isRoundLive) {
+                target.setUTCHours(15, 0, 0, 0);
+                const diff = target - now;
+                if(diff <= 0) location.reload();
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                document.getElementById('poolTimer').innerText = `Pool Ends: ${pad(h)}:${pad(m)}:${pad(s)}`;
+            } else {
+                document.getElementById('poolTimer').innerText = "Pool Closed: Settling";
+            }
+        }
+        function pad(n) { return n < 10 ? '0'+n : n; }
+
+        function renderMarkets() {
+            const liveContainer = document.getElementById('section-live');
+            const upcomingContainer = document.getElementById('upcoming-container');
+            
+            ASSETS.forEach((asset, index) => {
+                if(index < 2) {
+                    const chartId = `chart-${asset.sym}`;
+                    const html = `
+                    <div class="card-gradient rounded-3xl p-1 relative group mb-4">
+                        <div class="relative bg-[#080808] rounded-[22px] p-5 z-10 h-full">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-[#1a1a1a] flex items-center justify-center border border-[#333]">
+                                        <i class="${asset.icon} text-[${asset.color}] text-xl" style="color:${asset.color}"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-sm text-white">${asset.name}</h3>
+                                        <p class="text-lg font-mono font-bold text-white mt-0.5 price-${asset.sym} animate-pulse">Loading...</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="flex items-center justify-end gap-1.5 mb-1">
+                                        <span class="live-dot" style="background-color: ${isRoundLive?'#00FF94':'#FF2E2E'}"></span>
+                                        <span class="text-[10px] font-bold ${isRoundLive?'text-primary':'text-bear'} uppercase">${isRoundLive ? 'Live' : 'Closed'}</span>
+                                    </div>
+                                    <span class="text-[9px] text-gray-500 font-mono">Daily Round</span>
+                                </div>
+                            </div>
+                            <div class="chart-wrapper"><div id="${chartId}" class="w-full h-full"></div></div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button id="btn-${asset.sym}-BEAR" onclick="openBetModal('${asset.sym}', 'BEAR', 1.88)" class="bet-box hover:border-bear group/btn">
+                                    <span class="text-bear font-bold text-xs mb-1">BEAR</span>
+                                    <span class="text-[8px] text-gray-400 font-mono leading-tight mb-1 range-${asset.sym}-bear">--</span>
+                                    <span class="text-[9px] font-mono text-white bg-bear/10 border border-bear/30 px-1.5 py-0.5 rounded">1.88x</span>
+                                </button>
+                                <button id="btn-${asset.sym}-NEUTRAL" onclick="openBetModal('${asset.sym}', 'NEUTRAL', 3.91)" class="bet-box hover:border-white group/btn">
+                                    <span class="text-gray-300 font-bold text-xs mb-1">NEUTRAL</span>
+                                    <span class="text-[8px] text-gray-400 font-mono leading-tight mb-1 range-${asset.sym}-neutral">--</span>
+                                    <span class="text-[9px] font-mono text-white bg-white/10 border border-white/20 px-1.5 py-0.5 rounded">3.91x</span>
+                                </button>
+                                <button id="btn-${asset.sym}-BULL" onclick="openBetModal('${asset.sym}', 'BULL', 1.88)" class="bet-box hover:border-bull group/btn">
+                                    <span class="text-bull font-bold text-xs mb-1">BULL</span>
+                                    <span class="text-[8px] text-gray-400 font-mono leading-tight mb-1 range-${asset.sym}-bull">--</span>
+                                    <span class="text-[9px] font-mono text-white bg-bull/10 border border-bull/30 px-1.5 py-0.5 rounded">1.88x</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                    liveContainer.insertAdjacentHTML('afterbegin', html); 
+                    
+                    setTimeout(() => {
+                        new TradingView.widget({
+                            "container_id": chartId, "width": "100%", "height": "100%",
+                            "symbol": `BINANCE:${asset.sym}USDT`, "interval": "15", "timezone": "Etc/UTC",
+                            "theme": "dark", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6",
+                            "enable_publishing": false, "hide_top_toolbar": true, "hide_legend": true,
+                            "save_image": false, "backgroundColor": "rgba(0, 0, 0, 1)",
+                            "gridLineColor": "rgba(42, 46, 57, 0.3)"
+                        });
+                    }, 1000);
+                } else {
+                    upcomingContainer.innerHTML += `
+                    <div class="card-gradient rounded-2xl p-4 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-[#222] flex items-center justify-center"><i class="${asset.icon}" style="color:${asset.color}"></i></div>
+                            <div class="font-bold text-sm">${asset.name}</div>
+                        </div>
+                        <div class="bg-gray-900 px-3 py-1 rounded-full border border-gray-800 flex items-center gap-2">
+                            <i class="fa-solid fa-lock text-gray-500 text-xs"></i>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase">Starts Tomorrow</span>
+                        </div>
+                    </div>`;
+                }
+            });
+        }
+
+        async function fetchPrices() {
+            try {
+                const res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+                const data = await res.json();
+                ASSETS.forEach(asset => {
+                    const t = data.find(d => d.symbol === `${asset.sym}USDT`);
+                    if(t) {
+                        const p = parseFloat(t.lastPrice);
+                        prices[asset.sym] = p;
+                        const el = document.querySelector(`.price-${asset.sym}`);
+                        if(el) el.innerText = '$' + p.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        updateRanges(asset.sym, parseFloat(t.openPrice));
+                    }
+                });
+            } catch (e) {}
+        }
+
+        function updateRanges(asset, open) {
+            const bearLimit = (open * 0.995).toFixed(2);
+            const bullLimit = (open * 1.005).toFixed(2);
+            if(document.querySelector(`.range-${asset}-bear`)) document.querySelector(`.range-${asset}-bear`).innerText = `< $${bearLimit}`;
+            if(document.querySelector(`.range-${asset}-neutral`)) document.querySelector(`.range-${asset}-neutral`).innerText = `$${bearLimit} - $${bullLimit}`;
+            if(document.querySelector(`.range-${asset}-bull`)) document.querySelector(`.range-${asset}-bull`).innerText = `> $${bullLimit}`;
+        }
+
+        // ------------------- INTERACTION -------------------
+        function switchBottomTab(tab) {
+            ['home', 'rewards', 'profile'].forEach(t => {
+                document.getElementById(`view-${t}`).style.display = t === tab ? 'block' : 'none';
+                const btn = document.getElementById(`nav-${t}`);
+                if(t === tab) { btn.classList.remove('nav-inactive'); btn.classList.add('nav-active'); } 
+                else { btn.classList.add('nav-inactive'); btn.classList.remove('nav-active'); }
+            });
+        }
+        function switchHomeTab(tab) {
+            ['live', 'upcoming', 'ended'].forEach(t => {
+                document.getElementById(`section-${t}`).style.display = t === tab ? 'block' : 'none';
+                const btn = document.getElementById(`tab-${t}`);
+                if(t === tab) btn.className = "flex-1 py-2 rounded-lg text-[10px] tracking-widest font-bold bg-primary text-black shadow-[0_0_10px_rgba(0,255,148,0.3)] transition-all";
+                else btn.className = "flex-1 py-2 rounded-lg text-[10px] tracking-widest font-bold text-gray-500 hover:text-white transition-all";
+            });
+        }
+
+        // ------------------- ADMIN SETTLEMENT -------------------
+        async function settleRound() {
+            if(!userAddress) return showToast("Connect Admin Wallet");
+            const asset = document.getElementById('adminAsset').value;
+            const winner = document.getElementById('adminWinner').value;
+            const btn = document.getElementById('btnSettle');
+            
+            btn.innerText = "Processing...";
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST", mode: "no-cors",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ action: "settle_round", user: userAddress, asset: asset, winningSide: winner })
+                });
+                showToast(`Settled ${asset}: ${winner} Won`);
+                setTimeout(fetchUserData, 2000);
+            } catch(e) { showToast("Settlement Error"); }
+            btn.innerText = "SETTLE";
+        }
+
+        // ------------------- BETTING -------------------
+        function openBetModal(asset, side, multiplier) {
+            if(!isRoundLive) return showToast("Pool is Closed");
+            if(!userAddress) return showToast("Please Connect Wallet");
+            const btn = document.getElementById(`btn-${asset}-${side}`);
+            if(btn && btn.classList.contains('pointer-events-none')) return;
+
+            currentBet = { asset, side, multiplier };
+            document.getElementById('modalTitle').innerText = `${asset} Prediction Market`;
+            document.getElementById('modalSide').innerHTML = `<span class="${side === 'BEAR' ? 'text-bear' : (side === 'BULL' ? 'text-bull' : 'text-gray-300')}">${side}</span>`;
+            document.getElementById('modalMultiplier').innerText = `${multiplier}x`;
+            document.getElementById('inputAmount').value = 10;
+            calcPayout();
+            setCurrency('USDC'); 
+            document.getElementById('betModal').style.display = 'flex';
+        }
+        function closeModal() { document.getElementById('betModal').style.display = 'none'; }
+
+        function setCurrency(curr) {
+            selectedCurrency = curr;
+            document.getElementById('btn-curr-usdc').className = curr==='USDC' ? "py-2 rounded-lg text-[10px] font-bold bg-primary text-black transition-all shadow-[0_0_10px_rgba(0,255,148,0.3)]" : "py-2 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white transition-all";
+            document.getElementById('btn-curr-eth').className = curr==='ETH' ? "py-2 rounded-lg text-[10px] font-bold bg-blue-600 text-white transition-all shadow-[0_0_10px_rgba(37,99,235,0.3)]" : "py-2 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white transition-all";
+            document.getElementById('btn-curr-bonus').className = curr==='BONUS' ? "py-2 rounded-lg text-[10px] font-bold bg-gold text-black transition-all shadow-[0_0_10px_rgba(255,215,0,0.3)]" : "py-2 rounded-lg text-[10px] font-bold text-gold hover:text-white transition-all border border-transparent";
+            
+            if(curr === 'USDC') { document.getElementById('modalWalletBalance').innerText = userUsdcBalanceRaw.toFixed(2); document.getElementById('modalBalanceTicker').innerText = "USDC"; }
+            else if (curr === 'ETH') { document.getElementById('modalWalletBalance').innerText = userEthBalanceRaw.toFixed(4); document.getElementById('modalBalanceTicker').innerText = "ETH"; }
+            else { document.getElementById('modalWalletBalance').innerText = userBonusBalanceRaw.toFixed(2); document.getElementById('modalBalanceTicker').innerText = "BONUS"; }
+        }
+
+        function setMaxAmount() {
+            let amount = selectedCurrency === 'USDC' ? userUsdcBalanceRaw : (selectedCurrency === 'BONUS' ? userBonusBalanceRaw : (userEthBalanceRaw - 0.0005) * (prices['ETH']||2000));
+            if(amount < 0) amount = 0;
+            document.getElementById('inputAmount').value = amount > 50 ? 50 : amount.toFixed(2);
+            calcPayout();
+        }
+
+        function calcPayout() {
+            const val = parseFloat(document.getElementById('inputAmount').value);
+            if(!val || val < 0) { document.getElementById('modalPayout').innerText = "$0.00"; return; }
+            document.getElementById('modalPayout').innerText = `$${(val * currentBet.multiplier).toFixed(2)}`;
+        }
+
+        // ------------------- WITHDRAWAL LOGIC -------------------
+        function openWithdrawModal() {
+            if(!userAddress) return showToast("Connect Wallet First");
+            document.getElementById('withdrawAddress').innerText = userAddress;
+            document.getElementById('withdrawMaxBal').innerText = userWithdrawableRaw.toFixed(2); // USE WITHDRAWABLE BALANCE
+            document.getElementById('withdrawModal').style.display = 'flex';
+        }
+        
+        function closeWithdrawModal() {
+            document.getElementById('withdrawModal').style.display = 'none';
+        }
+
+        function setMaxWithdraw() {
+            document.getElementById('withdrawAmount').value = userWithdrawableRaw.toFixed(2);
+        }
+
+        async function submitWithdraw() {
+            const amount = parseFloat(document.getElementById('withdrawAmount').value);
+            const btn = document.getElementById('btnWithdrawConfirm');
+
+            if(isNaN(amount) || amount < 5) return showToast("Minimum withdrawal is $5.00");
+            if(amount > userWithdrawableRaw) return showToast("Insufficient Withdrawable Balance");
+
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processing...';
+            
+            try {
+                // Visual Update
+                userWithdrawableRaw -= amount;
+                document.getElementById('balanceWithdrawable').innerText = userWithdrawableRaw.toFixed(2);
+                
+                // Send to Backend
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST", mode: "no-cors",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ action: "withdraw", user: userAddress, amount: amount })
+                });
+
+                showToast("Withdrawal Submitted");
+                closeWithdrawModal();
+                setTimeout(fetchUserData, 2000);
+            } catch(e) {
+                console.error(e);
+                showToast("Network Error");
+            }
+            btn.innerText = "Send Withdrawal";
+        }
+
+        // ------------------- WALLET CONNECT -------------------
+        async function connectWallet() {
+            if (!window.ethereum) return showToast("Wallet not found");
+            try {
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                const { chainId } = await provider.getNetwork();
+                if(chainId !== CHAIN_ID) {
+                    try { await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: BASE_CHAIN_ID_HEX }] }); } catch (e) { return showToast("Please switch to Base Chain"); }
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                }
+                signer = provider.getSigner();
+                userAddress = await signer.getAddress();
+                
+                if(userAddress.toLowerCase() === ADMIN_WALLET.toLowerCase()) {
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                }
+
+                document.getElementById('walletText').innerText = userAddress.slice(0,4) + '..';
+                document.getElementById('profileAddress').innerText = userAddress.slice(0,6) + '...' + userAddress.slice(-4);
+                document.getElementById('refLinkBox').innerText = `${window.location.origin}?ref=${userAddress}`;
+                
+                // Balance Fetch
+                const ethBal = await provider.getBalance(userAddress);
+                userEthBalanceRaw = parseFloat(ethers.utils.formatEther(ethBal));
+                document.getElementById('balanceEth').innerText = userEthBalanceRaw.toFixed(4);
+                
+                const usdcContract = new ethers.Contract(USDC_ADDRESS, ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"], provider);
+                const usdcBal = await usdcContract.balanceOf(userAddress);
+                userUsdcBalanceRaw = parseFloat(ethers.utils.formatUnits(usdcBal, await usdcContract.decimals()));
+                document.getElementById('balanceUsdc').innerText = userUsdcBalanceRaw.toFixed(2);
+
+                // IMPORTANT: Fetch Payouts and History
+                fetchUserData();
+            } catch(e) { console.log(e); }
+        }
+
+        // ------------------- SUBMIT TRANSACTION -------------------
+        async function submitBet() {
+            const btn = document.getElementById('confirmBtn');
+            const amountInput = document.getElementById('inputAmount').value;
+            const amountFloat = parseFloat(amountInput);
+            if (isNaN(amountFloat) || amountFloat < 0.05) return showToast("Minimum Bet is $0.05");
+            if (amountFloat > 50) return showToast("Maximum Bet is $50");
+            if (selectedCurrency === 'BONUS' && amountFloat > userBonusBalanceRaw) return showToast("Insufficient Playable Bonus");
+
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processing...';
+            try {
+                let txHash = "BONUS_SPEND";
+                if(selectedCurrency !== 'BONUS') {
+                    let tx;
+                    if(selectedCurrency === 'USDC') {
+                        const contract = new ethers.Contract(USDC_ADDRESS, ["function transfer(address to, uint256 amount) returns (bool)", "function decimals() view returns (uint8)"], signer);
+                        const dec = await contract.decimals();
+                        tx = await contract.transfer(ADMIN_WALLET, ethers.utils.parseUnits(amountInput, dec), { gasLimit: 100000 });
+                    } else {
+                        tx = await signer.sendTransaction({ to: ADMIN_WALLET, value: ethers.utils.parseEther((amountFloat / (prices['ETH']||2000)).toFixed(18)), gasLimit: 21000 });
+                    }
+                    await tx.wait(); txHash = tx.hash;
+                } else { await new Promise(r => setTimeout(r, 1000)); }
+                
+                closeModal();
+                showToast(selectedCurrency === 'BONUS' ? "Bonus Bet Placed!" : "Transaction Submitted");
+
+                fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST", mode: "no-cors",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ action: "bet", user: userAddress, asset: currentBet.asset, prediction: currentBet.side, amount: amountInput, currency: selectedCurrency, txHash: txHash })
+                });
+
+                markBetAsJoined(currentBet.asset, currentBet.side);
+                if(selectedCurrency === 'BONUS') { 
+                    userBonusBalanceRaw -= amountFloat; 
+                    document.getElementById('balanceBonus').innerText = userBonusBalanceRaw.toFixed(2); 
+                }
+                setTimeout(fetchUserData, 2000);
+                btn.innerText = "Confirm Payment";
+            } catch(e) { console.error(e); btn.innerText = "Confirm Payment"; showToast("Transaction Failed"); }
+        }
+
+        function markBetAsJoined(asset, side) {
+            const sides = ['BEAR', 'NEUTRAL', 'BULL'];
+            sides.forEach(s => {
+                const btn = document.getElementById(`btn-${asset}-${s}`);
+                if(btn) {
+                    if(s === side) {
+                        let joinedClass = side === 'BEAR' ? "joined-bear" : (side === 'BULL' ? "joined-bull" : "joined-neutral");
+                        btn.className = `bet-box ${joinedClass}`;
+                        btn.innerHTML = `<span class="font-bold text-xs mb-1">JOINED</span><span class="text-[10px]"><i class="fa-solid fa-check-circle"></i></span>`;
+                    } else { btn.classList.add('bet-disabled'); btn.onclick = null; }
+                }
+            });
+        }
+
+        // ------------------- DATA FETCHING & PAYOUT DISPLAY -------------------
+        async function fetchUserData() {
+            if(!userAddress) return;
+            
+            // UI Loading States
+            document.getElementById('payoutLogBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500 italic text-xs"><i class="fa-solid fa-spinner fa-spin"></i> Syncing Ledger...</td></tr>';
+
+            try {
+                const res = await fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "get_user_data", user: userAddress }) });
+                const data = await res.json();
+                
+                // Update Balances
+                if(data.bonus !== undefined) {
+                    userBonusBalanceRaw = parseFloat(data.bonus); // Playable
+                    userWithdrawableRaw = parseFloat(data.real || 0); // Real Money
+                    userLifetimeReward = parseFloat(data.lifetimeReward || 0); // Campaign Record
+                    
+                    document.getElementById('balanceBonus').innerText = userBonusBalanceRaw.toFixed(2);
+                    document.getElementById('balanceWithdrawable').innerText = userWithdrawableRaw.toFixed(2);
+                    document.getElementById('reward-amount').innerText = `$${userLifetimeReward.toFixed(2)}`;
+                }
+
+                // Render Bets History & Payouts
+                if(data.history && data.history.length > 0) {
+                    let payoutHTML = '';
+                    let historyHTML = '';
+                    
+                    data.history.forEach(item => {
+                        const isBonus = item.currency === 'BONUS';
+
+                        // Status Logic for Table
+                        let statusBadge = '';
+                        let payoutDisplay = '';
+                        let rowClass = '';
+
+                        if(item.status === 'WON') {
+                            statusBadge = `<span class="text-bull font-bold text-[9px] bg-bull/10 px-1.5 py-0.5 rounded border border-bull/30">WON</span>`;
+                            payoutDisplay = `<span class="text-bull font-bold font-mono text-xs">+$${parseFloat(item.payout).toFixed(2)}</span>`;
+                            rowClass = 'border-l-2 border-l-bull';
+                        } else if(item.status === 'LOST') {
+                            statusBadge = `<span class="text-bear font-bold text-[9px] bg-bear/10 px-1.5 py-0.5 rounded border border-bear/30">LOST</span>`;
+                            payoutDisplay = `<span class="text-gray-600 font-mono text-xs">$0.00</span>`;
+                            rowClass = 'opacity-80';
+                        } else {
+                            statusBadge = `<span class="text-gold font-bold text-[9px] bg-gold/10 px-1.5 py-0.5 rounded border border-gold/30">OPEN</span>`;
+                            payoutDisplay = `<span class="text-gray-500 font-mono text-[10px]">Pending</span>`;
+                        }
+
+                        // Payout Table Row
+                        payoutHTML += `
+                        <tr class="${rowClass}">
+                            <td class="text-gray-400">${item.date.split(',')[0]}</td>
+                            <td class="font-bold text-white">${item.asset}</td>
+                            <td class="${item.side==='BEAR'?'text-bear':'text-bull'} font-bold">${item.side}</td>
+                            <td>${statusBadge}</td>
+                            <td>
+                                ${payoutDisplay}
+                                <span class="text-[8px] ml-1 ${isBonus ? 'text-gold' : 'text-gray-500'}">${item.currency}</span>
+                            </td>
+                        </tr>`;
+
+                        // Mobile Activity Card Logic
+                        let amountDisplay = `<span class="text-white font-mono font-bold text-xs">$${item.amount}</span>`;
+                        if(isBonus) {
+                            amountDisplay += `<span class="ml-1 text-[8px] text-black bg-gold px-1 rounded font-bold">BONUS</span>`;
+                        }
+
+                        let resultDisplay = '';
+                        if(item.status === 'WON') {
+                            resultDisplay = `<div class="text-bull font-mono font-bold text-xs mt-1">+ $${parseFloat(item.payout).toFixed(2)}</div>`;
+                        } else if (item.status === 'LOST') {
+                            resultDisplay = `<div class="text-bear text-[9px] mt-1">-$${item.amount}</div>`;
+                        } else {
+                            resultDisplay = `<div class="text-gold text-[9px] mt-1 animate-pulse">Open</div>`;
+                        }
+
+                        // Mobile Activity Card HTML
+                        historyHTML += `
+                        <div class="bg-[#111] p-3 rounded-xl border border-[#222] flex justify-between items-center mb-2 relative overflow-hidden">
+                            ${isBonus ? '<div class="absolute top-0 left-0 w-1 h-full bg-gold"></div>' : ''} 
+                            <div class="flex items-center gap-3 pl-2">
+                                <div class="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center border border-[#333] text-[10px] font-bold">${item.asset}</div>
+                                <div>
+                                    <div class="text-xs font-bold text-white">${item.asset} <span class="${item.side==='BEAR'?'text-bear':'text-bull'}">${item.side}</span></div>
+                                    <div class="text-[9px] text-gray-500">${item.date.split(',')[0]}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div>${amountDisplay}</div>
+                                ${resultDisplay}
+                            </div>
+                        </div>`;
+
+                        // Re-apply Joined State for Live Rounds
+                        if(isRoundLive && item.status === "PENDING") markBetAsJoined(item.asset, item.side);
+                    });
+
+                    document.getElementById('payoutLogBody').innerHTML = payoutHTML;
+                    document.getElementById('historyList').innerHTML = historyHTML;
+                    updateMysteryBoxState(true, data.lifetimeReward > 0);
+                } else {
+                    document.getElementById('payoutLogBody').innerHTML = '<tr><td colspan="5" class="text-center py-6 text-gray-600 text-xs">No trading history found.</td></tr>';
+                    document.getElementById('historyList').innerHTML = '<div class="text-center text-gray-700 text-xs italic pt-4">No active bets found.</div>';
+                    updateMysteryBoxState(false, false);
+                }
+
+                // Render Withdrawals History
+                if(data.withdrawals && data.withdrawals.length > 0) {
+                    let wHtml = '';
+                    data.withdrawals.forEach(w => {
+                        let statusColor = w.status === "PROCESSING" ? "text-gold" : (w.status === "COMPLETED" ? "text-bull" : "text-bear");
+                        let icon = w.status === "PROCESSING" ? "fa-clock" : (w.status === "COMPLETED" ? "fa-check" : "fa-xmark");
+                        
+                        wHtml += `
+                        <div class="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded-full bg-[#151515] flex items-center justify-center text-[10px] ${statusColor}">
+                                    <i class="fa-solid ${icon}"></i>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] font-bold text-white">Withdraw</div>
+                                    <div class="text-[8px] text-gray-500">${w.date}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-white font-mono font-bold text-xs">-$${parseFloat(w.amount).toFixed(2)}</div>
+                                <div class="text-[8px] font-bold ${statusColor}">${w.status}</div>
+                            </div>
+                        </div>`;
+                    });
+                    document.getElementById('withdrawalList').innerHTML = wHtml;
+                } else {
+                    document.getElementById('withdrawalList').innerHTML = '<div class="text-center text-gray-700 text-xs italic pt-2">No active withdrawals.</div>';
+                }
+
+            } catch(e) { 
+                console.error(e);
+                document.getElementById('payoutLogBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-red-500 text-xs">Error loading ledger.</td></tr>';
+            }
+        }
+
+        // ------------------- CAMPAIGNS -------------------
+        function updateMysteryBoxState(hasTraded, hasLifetimeReward) {
+            const boxClaimedLocal = localStorage.getItem('boxClaimed_' + userAddress);
+            if (hasTraded) {
+                if (boxClaimedLocal === 'true' || hasLifetimeReward) {
+                    document.getElementById('mystery-revealed').style.display = 'block';
+                    document.getElementById('mystery-locked').style.display = 'none';
+                } else {
+                    document.getElementById('mystery-unlocked').style.display = 'block';
+                    document.getElementById('mystery-locked').style.display = 'none';
+                    // Add shake animation to icon
+                    document.getElementById('box-icon-container').classList.add('animate-shake');
+                }
+            } else { document.getElementById('mystery-locked').style.display = 'block'; }
+        }
+
+        function openMysteryBox() {
+            document.getElementById('mystery-unlocked').style.display = 'none';
+            document.getElementById('box-icon-container').classList.remove('animate-shake');
+            document.getElementById('box-icon-container').innerHTML = '<i class="fa-solid fa-box-open text-white drop-shadow-[0_0_20px_white]"></i>';
+            
+            const reward = (Math.random() * (25 - 6) + 6).toFixed(2);
+            document.getElementById('reward-amount').innerText = `$${reward}`;
+            document.getElementById('mystery-revealed').style.display = 'block';
+            
+            showToast(`You won $${reward} Bonus!`);
+            localStorage.setItem('boxClaimed_' + userAddress, 'true');
+            
+            fetch(GOOGLE_SCRIPT_URL, { method: "POST", mode: "no-cors", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ action: "mystery_claim", user: userAddress, amount: reward }) });
+            
+            userBonusBalanceRaw += parseFloat(reward);
+            document.getElementById('balanceBonus').innerText = userBonusBalanceRaw.toFixed(2);
+        }
+
+        function copyRef() { if(!userAddress) return showToast("Connect Wallet"); navigator.clipboard.writeText(document.getElementById('refLinkBox').innerText); showToast("Referral Link Copied"); }
+        function showPerpsToast() { showToast("Perpetuals Trading - Coming Soon"); }
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            t.classList.remove('opacity-0', 'pointer-events-none'); t.classList.add('opacity-100', 'translate-y-2');
+            setTimeout(() => { t.classList.remove('opacity-100', 'translate-y-2'); t.classList.add('opacity-0', 'pointer-events-none'); }, 3000);
+        }
+    </script>
+</body>
+</html>
